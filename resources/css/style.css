@@ -1,0 +1,143 @@
+/* HabitGarden theme: soft greens, rounded corners */
+
+.root-pane {
+    -fx-background-color: #f1f8ee;
+    -fx-font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-size: 14px;
+}
+
+/* ---------- header ---------- */
+.header {
+    -fx-background-color: #2e7d32;
+    -fx-padding: 14 10 14 10;
+}
+.title {
+    -fx-text-fill: white;
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+}
+.subtitle {
+    -fx-text-fill: #c8e6c9;
+    -fx-font-size: 13px;
+}
+
+/* ---------- form ---------- */
+.tab-content {
+    -fx-background-color: #f1f8ee;
+}
+.form-box {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-border-color: #c8e6c9;
+    -fx-border-radius: 12;
+}
+.text-field, .combo-box {
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+}
+.summary-label {
+    -fx-text-fill: #33691e;
+    -fx-font-weight: bold;
+}
+.message-label {
+    -fx-text-fill: #558b2f;
+    -fx-font-style: italic;
+}
+
+/* ---------- buttons ---------- */
+.primary-button {
+    -fx-background-color: #43a047;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 8;
+    -fx-padding: 7 18 7 18;
+    -fx-cursor: hand;
+}
+.primary-button:hover {
+    -fx-background-color: #2e7d32;
+}
+.done-button {
+    -fx-background-color: #66bb6a;
+    -fx-text-fill: white;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+}
+.done-button:hover {
+    -fx-background-color: #388e3c;
+}
+.done-button:disabled {
+    -fx-background-color: #cfd8cc;
+    -fx-text-fill: #7a8a76;
+}
+.delete-button {
+    -fx-background-color: #ef9a9a;
+    -fx-text-fill: #7f1d1d;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+}
+.delete-button:hover {
+    -fx-background-color: #e57373;
+}
+
+/* ---------- table ---------- */
+.table-view {
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: #c8e6c9;
+}
+.table-view .column-header-background {
+    -fx-background-color: #c8e6c9;
+}
+.table-row-cell:selected {
+    -fx-background-color: #dcedc8;
+}
+
+/* ---------- garden ---------- */
+.garden-scroll {
+    -fx-background-color: #f1f8ee;
+}
+.garden-pane {
+    -fx-background-color: #f1f8ee;
+}
+.plant-card {
+    -fx-background-color: white;
+    -fx-background-radius: 14;
+    -fx-border-color: #c8e6c9;
+    -fx-border-radius: 14;
+}
+.plant-card-wilted {
+    -fx-background-color: #fff8e1;
+    -fx-border-color: #ffe082;
+}
+.card-name {
+    -fx-font-weight: bold;
+    -fx-font-size: 15px;
+    -fx-text-fill: #1b5e20;
+    -fx-text-alignment: center;
+}
+.card-info {
+    -fx-text-fill: #5f6f5b;
+    -fx-font-size: 12px;
+}
+.status-due {
+    -fx-text-fill: #1565c0;
+    -fx-font-weight: bold;
+}
+.status-done {
+    -fx-text-fill: #2e7d32;
+    -fx-font-weight: bold;
+}
+.status-wilted {
+    -fx-text-fill: #e65100;
+    -fx-font-weight: bold;
+}
+.image-placeholder {
+    -fx-background-color: #e8f5e9;
+    -fx-background-radius: 10;
+    -fx-text-fill: #558b2f;
+}
+.empty-label {
+    -fx-text-fill: #7a8a76;
+    -fx-font-size: 16px;
+    -fx-padding: 40;
+}
