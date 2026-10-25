@@ -7,64 +7,63 @@
 <BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="controller.HabitGardenController" styleClass="root-pane">
 
+    <!-- ============ HEADER ============ -->
     <top>
-        <VBox alignment="CENTER" spacing="2" styleClass="header">
-            <Label text="HabitGarden" styleClass="title"/>
-            <Label text="Grow your routine, one day at a time" styleClass="subtitle"/>
-        </VBox>
+        <HBox alignment="CENTER_LEFT" spacing="16" styleClass="header">
+            <VBox spacing="2">
+                <Label text="HabitGarden" styleClass="title"/>
+                <Label text="Grow your routine, one day at a time" styleClass="subtitle"/>
+            </VBox>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="summaryLabel" styleClass="summary-chip"/>
+        </HBox>
     </top>
 
+    <!-- ============ THE GARDEN (GardenView is added here by the controller) ============ -->
     <center>
-        <TabPane tabClosingPolicy="UNAVAILABLE">
-
-            <!-- ============ TAB 1: ADD HABIT + HABIT LIST ============ -->
-            <Tab text="My Habits">
-                <VBox spacing="12" styleClass="tab-content">
-                    <padding>
-                        <Insets top="16" right="16" bottom="16" left="16"/>
-                    </padding>
-
-                    <HBox spacing="10" alignment="CENTER_LEFT" styleClass="form-box">
-                        <padding>
-                            <Insets top="12" right="12" bottom="12" left="12"/>
-                        </padding>
-                        <TextField fx:id="nameField" promptText="New habit (e.g. Drink Water)"
-                                   HBox.hgrow="ALWAYS"/>
-                        <ComboBox fx:id="frequencyBox" prefWidth="120"/>
-                        <ComboBox fx:id="plantBox" prefWidth="120"/>
-                        <Button text="Add Habit" onAction="#handleAddHabit" styleClass="primary-button"/>
-                    </HBox>
-
-                    <HBox spacing="16" alignment="CENTER_LEFT">
-                        <Label fx:id="summaryLabel" styleClass="summary-label"/>
-                        <Label fx:id="messageLabel" styleClass="message-label"/>
-                    </HBox>
-
-                    <TableView fx:id="habitTable" VBox.vgrow="ALWAYS">
-                        <columns>
-                            <TableColumn fx:id="nameCol" text="Habit" prefWidth="200"/>
-                            <TableColumn fx:id="frequencyCol" text="Frequency" prefWidth="90"/>
-                            <TableColumn fx:id="plantCol" text="Plant" prefWidth="90"/>
-                            <TableColumn fx:id="stageCol" text="Stage" prefWidth="80"/>
-                            <TableColumn fx:id="streakCol" text="Streak" prefWidth="90"/>
-                            <TableColumn fx:id="statusCol" text="Status" prefWidth="150"/>
-                            <TableColumn fx:id="actionCol" text="Actions" prefWidth="170" sortable="false"/>
-                        </columns>
-                    </TableView>
-                </VBox>
-            </Tab>
-
-            <!-- ============ TAB 2: GARDEN DASHBOARD ============ -->
-            <Tab text="Garden">
-                <ScrollPane fitToWidth="true" styleClass="garden-scroll">
-                    <FlowPane fx:id="gardenPane" hgap="16" vgap="16" styleClass="garden-pane">
-                        <padding>
-                            <Insets top="16" right="16" bottom="16" left="16"/>
-                        </padding>
-                    </FlowPane>
-                </ScrollPane>
-            </Tab>
-
-        </TabPane>
+        <StackPane fx:id="gardenHolder" styleClass="garden-holder" minWidth="0" minHeight="0"/>
     </center>
+
+    <!-- ============ SIDE PANEL ============ -->
+    <right>
+        <VBox spacing="14" prefWidth="320" minWidth="300" styleClass="sidebar">
+            <padding>
+                <Insets top="16" right="16" bottom="16" left="16"/>
+            </padding>
+
+            <!-- plant a new habit -->
+            <VBox spacing="8" minHeight="-Infinity" styleClass="card">
+                <Label text="Plant a new habit" styleClass="card-title"/>
+                <TextField fx:id="nameField" promptText="e.g. Drink Water"/>
+                <HBox spacing="8">
+                    <ComboBox fx:id="frequencyBox" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
+                    <ComboBox fx:id="plantBox" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
+                </HBox>
+                <Button text="Plant it" onAction="#handleAddHabit" maxWidth="Infinity" styleClass="primary-button"/>
+            </VBox>
+
+            <!-- the selected plant -->
+            <VBox spacing="8" minHeight="-Infinity" styleClass="card">
+                <Label fx:id="detailTitle" text="Pick a plant" styleClass="card-title"/>
+                <Label fx:id="detailInfo" wrapText="true" minHeight="-Infinity" styleClass="detail-info"/>
+                <ProgressBar fx:id="stageProgress" progress="0" maxWidth="Infinity"/>
+                <Label fx:id="nextStageLabel" wrapText="true" minHeight="-Infinity" styleClass="detail-hint"/>
+                <HBox spacing="8">
+                    <Button fx:id="waterButton" text="Water it (Done)" onAction="#handleDone"
+                            maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="water-button"/>
+                    <Button fx:id="removeButton" text="Remove" onAction="#handleDelete" styleClass="delete-button"/>
+                </HBox>
+            </VBox>
+
+            <!-- every habit -->
+            <Label text="All habits" styleClass="section-title"/>
+            <ListView fx:id="habitList" VBox.vgrow="ALWAYS" minHeight="50" styleClass="habit-list"/>
+        </VBox>
+    </right>
+
+    <!-- ============ STATUS BAR ============ -->
+    <bottom>
+        <Label fx:id="messageLabel" maxWidth="Infinity" styleClass="status-bar"
+               text="Tip: click a plant to select it, double-click to water it."/>
+    </bottom>
 </BorderPane>

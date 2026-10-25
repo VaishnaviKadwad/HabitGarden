@@ -2,40 +2,39 @@ package controller;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
-import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
-import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.TableCell;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.ListView;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextField;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.Circle;
 import javafx.util.Duration;
+import model.Cactus;
+import model.Flower;
 import model.Habit;
 import model.HabitManager;
+import model.Plant;
+import model.Tree;
+import view.GardenView;
+import view.PlantView;
 
-import java.io.InputStream;
 import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 /**
  * Controller for main.fxml (Member 2).
- * Connects the buttons and lists on screen to the HabitManager (Member 1).
+ * Connects the garden, the side panel and the habit list to the HabitManager (Member 1).
  */
 public class HabitGardenController {
 
@@ -44,24 +43,26 @@ public class HabitGardenController {
 
     // ---------- model ----------
     private final HabitManager manager = new HabitManager();
-    private final ObservableList<Habit> habitList = FXCollections.observableArrayList();
-    private final Map<String, Image> imageCache = new HashMap<>();
+    private final ObservableList<Habit> items = FXCollections.observableArrayList();
+    private GardenView garden;
+    private Habit selected;                 // the plant shown in the side panel (or null)
+    private boolean syncingList = false;    // stops the list and garden selecting each other in a loop
+    private LocalDate lastRefreshDay;
 
     // ---------- widgets injected from main.fxml ----------
+    @FXML private StackPane gardenHolder;
     @FXML private TextField nameField;
     @FXML private ComboBox<String> frequencyBox;
     @FXML private ComboBox<String> plantBox;
     @FXML private Label summaryLabel;
     @FXML private Label messageLabel;
-    @FXML private TableView<Habit> habitTable;
-    @FXML private TableColumn<Habit, String> nameCol;
-    @FXML private TableColumn<Habit, String> frequencyCol;
-    @FXML private TableColumn<Habit, String> plantCol;
-    @FXML private TableColumn<Habit, String> stageCol;
-    @FXML private TableColumn<Habit, String> streakCol;
-    @FXML private TableColumn<Habit, String> statusCol;
-    @FXML private TableColumn<Habit, Void> actionCol;
-    @FXML private FlowPane gardenPane;
+    @FXML private Label detailTitle;
+    @FXML private Label detailInfo;
+    @FXML private ProgressBar stageProgress;
+    @FXML private Label nextStageLabel;
+    @FXML private Button waterButton;
+    @FXML private Button removeButton;
+    @FXML private ListView<Habit> habitList;
 
     // ======================================================================
     // Start-up
@@ -74,32 +75,34 @@ public class HabitGardenController {
         frequencyBox.getSelectionModel().selectFirst();
         plantBox.getItems().addAll("FLOWER", "TREE", "CACTUS");
         plantBox.getSelectionModel().selectFirst();
+        nameField.setOnAction(e -> handleAddHabit());   // Enter also plants the habit
 
-        // pressing Enter in the name field also adds the habit
-        nameField.setOnAction(e -> handleAddHabit());
+        // the garden scene: click = select, double-click = water, click on grass = deselect
+        garden = new GardenView(this::select, this::water, () -> select(null));
+        gardenHolder.getChildren().add(garden);
 
-        // table columns
-        nameCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getHabitName()));
-        frequencyCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getFrequency()));
-        plantCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getPlantType()));
-        stageCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getPlant().getStageName()));
-        streakCol.setCellValueFactory(c -> new SimpleStringProperty(streakText(c.getValue())));
-        statusCol.setCellValueFactory(c -> new SimpleStringProperty(statusOf(c.getValue())));
-        setupActionColumn();
-
-        habitTable.setItems(habitList);
-        habitTable.setPlaceholder(new Label("No habits yet. Add your first one above!"));
+        // the list on the right
+        habitList.setItems(items);
+        habitList.setCellFactory(list -> new HabitCell());
+        habitList.getSelectionModel().selectedItemProperty().addListener((obs, oldHabit, newHabit) -> {
+            if (!syncingList && newHabit != null) {
+                select(newHabit);
+            }
+        });
 
         loadSavedHabits();
         if (DEMO_MODE && manager.getHabits().isEmpty()) {
             addDemoData();
         }
         refreshUI();
+        if (!items.isEmpty()) {
+            select(items.get(0));
+        }
 
-        // re-check every minute so Done buttons re-enable after midnight
-        Timeline dayCheck = new Timeline(new KeyFrame(Duration.minutes(1), e -> refreshUI()));
-        dayCheck.setCycleCount(Timeline.INDEFINITE);
-        dayCheck.play();
+        // every minute: update the sky, and redraw if the date has changed (midnight)
+        Timeline clock = new Timeline(new KeyFrame(Duration.minutes(1), e -> onClockTick()));
+        clock.setCycleCount(Timeline.INDEFINITE);
+        clock.play();
     }
 
     /** Member 3 hook: load habits from the CSV file when the app starts. */
@@ -108,7 +111,7 @@ public class HabitGardenController {
         // try {
         //     for (Habit h : storage.loadHabits()) {
         //         try {
-        //             manager.addHabit(h);          // one bad row is skipped,
+        //             manager.addHabit(h);              // one bad row is skipped,
         //         } catch (IllegalArgumentException e) { // the rest still load
         //             System.err.println("Skipped habit: " + e.getMessage());
         //         }
@@ -135,10 +138,12 @@ public class HabitGardenController {
         manager.addHabit(new Habit("Study 1 Hour", "DAILY", 5, today.minusDays(1), "TREE"));
         manager.addHabit(new Habit("Gym", "DAILY", 7, today.minusDays(4), "CACTUS"));
         manager.addHabit(new Habit("Read a Book", "WEEKLY", 0, null, "FLOWER"));
+        manager.addHabit(new Habit("Sleep by 11", "DAILY", 10, today, "TREE"));
+        manager.addHabit(new Habit("Meditate", "WEEKLY", 4, today.minusDays(3), "CACTUS"));
     }
 
     // ======================================================================
-    // Button handlers
+    // Actions
     // ======================================================================
 
     @FXML
@@ -151,42 +156,94 @@ public class HabitGardenController {
                 throw new IllegalArgumentException("Please choose a frequency and a plant.");
             }
 
-            manager.addHabit(name, frequency, plant);   // Member 1's code validates the input
+            Habit habit = manager.addHabit(name, frequency, plant);   // Member 1's code validates the input
 
             nameField.clear();
             nameField.requestFocus();
             persist();
+            selected = habit;
             refreshUI();
-            showMessage("Planted a new " + plant.toLowerCase() + " for \"" + name.trim() + "\".");
+            garden.sproutIn(habit);
+            showMessage("Planted a " + plant.toLowerCase() + " seed for \"" + habit.getHabitName() + "\".");
         } catch (IllegalArgumentException e) {
-            showError("Cannot add habit", e.getMessage());
+            showError("Cannot plant this habit", e.getMessage());
         }
     }
 
-    private void completeHabit(Habit habit) {
-        try {
-            manager.completeHabit(habit);
-            persist();
-            refreshUI();
-            showMessage("Nice! \"" + habit.getHabitName() + "\" streak is now " + habit.getStreak() + ".");
-        } catch (IllegalStateException | IllegalArgumentException e) {
-            showError("Cannot complete habit", e.getMessage());
-        }
+    @FXML
+    private void handleDone() {
+        water(selected);
     }
 
-    private void deleteHabit(Habit habit) {
+    @FXML
+    private void handleDelete() {
+        if (selected == null) {
+            return;
+        }
+        Habit habit = selected;
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
-                "Delete \"" + habit.getHabitName() + "\" and its plant?",
+                "Remove \"" + habit.getHabitName() + "\" and its plant from the garden?",
                 ButtonType.YES, ButtonType.NO);
-        confirm.setTitle("Delete habit");
+        confirm.setTitle("Remove habit");
         confirm.setHeaderText("Are you sure?");
         Optional<ButtonType> result = confirm.showAndWait();
 
         if (result.isPresent() && result.get() == ButtonType.YES) {
             manager.deleteHabit(habit);
+            selected = null;
             persist();
             refreshUI();
-            showMessage("Deleted \"" + habit.getHabitName() + "\".");
+            showMessage("Removed \"" + habit.getHabitName() + "\".");
+        }
+    }
+
+    /** Marks the habit as done. Used by the button and by double-clicking a plant. */
+    private void water(Habit habit) {
+        if (habit == null) {
+            return;
+        }
+        if (!habit.isDue()) {
+            select(habit);
+            showMessage("\"" + habit.getHabitName() + "\" is already watered " + periodWord(habit) + ".");
+            return;
+        }
+        int stageBefore = habit.getPlant().getGrowthStage();
+        boolean wasWilted = habit.getPlant().isWilted();
+        try {
+            manager.completeHabit(habit);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            showError("Cannot water this plant", e.getMessage());
+            return;
+        }
+        persist();
+        selected = habit;
+        refreshUI();
+
+        boolean grew = habit.getPlant().getGrowthStage() > stageBefore;
+        garden.celebrate(habit, grew);
+
+        String plantStage = PlantView.create(habit).getStageName();
+        if (wasWilted) {
+            showMessage("You saved \"" + habit.getHabitName() + "\"! Its streak starts again at 1.");
+        } else if (grew) {
+            showMessage("\"" + habit.getHabitName() + "\" grew! It is now: " + plantStage + ".");
+        } else {
+            showMessage("Watered \"" + habit.getHabitName() + "\". Streak: " + habit.getStreak() + ".");
+        }
+    }
+
+    /** Selects a habit in the garden, the list and the details panel (null = nothing). */
+    private void select(Habit habit) {
+        selected = habit;
+        syncListSelection();
+        garden.setSelected(habit);
+        updateDetails();
+    }
+
+    private void onClockTick() {
+        garden.updateSky();
+        if (!LocalDate.now().equals(lastRefreshDay)) {
+            refreshUI();                      // a new day: some habits are due again
         }
     }
 
@@ -194,163 +251,152 @@ public class HabitGardenController {
     // Refreshing the screen
     // ======================================================================
 
-    /** Rebuilds the table, the garden and the summary from the current model. */
+    /** Rebuilds the garden, the list, the details panel and the summary from the model. */
     private void refreshUI() {
-        manager.refreshAll();                       // updates wilted / growth stage by today's date
-        habitList.setAll(manager.getHabits());
-        habitTable.refresh();
-        buildGarden();
+        manager.refreshAll();                 // updates wilted / growth stage by today's date
+        lastRefreshDay = LocalDate.now();
+        if (selected != null && !manager.getHabits().contains(selected)) {
+            selected = null;
+        }
+        syncingList = true;
+        items.setAll(manager.getHabits());
+        syncingList = false;
+        habitList.refresh();
+        syncListSelection();
+        garden.setHabits(manager.getHabits(), selected);
+        updateDetails();
         updateSummary();
+    }
+
+    private void syncListSelection() {
+        syncingList = true;
+        if (selected == null) {
+            habitList.getSelectionModel().clearSelection();
+        } else {
+            habitList.getSelectionModel().select(selected);
+        }
+        syncingList = false;
     }
 
     private void updateSummary() {
         long due = manager.getHabits().stream().filter(Habit::isDue).count();
-        summaryLabel.setText(manager.getHabits().size() + " habits  |  " + due + " due");
+        long wilted = manager.getHabits().stream().filter(h -> h.getPlant().isWilted()).count();
+        summaryLabel.setText(manager.getHabits().size() + " plants  |  "
+                + due + " need water  |  " + wilted + " wilting");
+    }
+
+    /** Fills the "selected plant" card on the right. */
+    private void updateDetails() {
+        boolean hasSelection = selected != null;
+        removeButton.setDisable(!hasSelection);
+        stageProgress.setVisible(hasSelection);
+
+        if (!hasSelection) {
+            detailTitle.setText("Pick a plant");
+            detailInfo.setText("Click a plant in the garden (or a habit in the list) to see how it is growing. "
+                    + "Double-click a plant to water it.");
+            nextStageLabel.setText("");
+            waterButton.setDisable(true);
+            waterButton.setText("Water it (Done)");
+            return;
+        }
+
+        PlantView look = PlantView.create(selected);
+        detailTitle.setText(selected.getHabitName());
+        detailInfo.setText(look.getTypeLabel() + "  -  " + look.getStageName() + "\n"
+                + selected.getFrequency().toLowerCase() + "  -  " + streakText(selected) + "\n"
+                + "Status: " + statusText(selected));
+
+        waterButton.setDisable(!selected.isDue());
+        waterButton.setText(selected.isDue() ? "Water it (Done)" : "Done " + periodWord(selected));
+        updateGrowthProgress(selected, look);
+    }
+
+    /** Shows how close the plant is to its next stage, using the plant's own grow() rules. */
+    private void updateGrowthProgress(Habit habit, PlantView look) {
+        if (habit.getPlant().isWilted()) {
+            stageProgress.setProgress(0);
+            nextStageLabel.setText("This plant is wilting. Water it to save it - the streak will restart at 1.");
+            return;
+        }
+        Plant probe = newPlantOfType(habit.getPlantType());   // a spare plant to test streak values on
+        int streak = habit.getStreak();
+        probe.grow(streak);
+        int stage = probe.getGrowthStage();
+        if (stage == Plant.FLOWER) {
+            stageProgress.setProgress(1.0);
+            nextStageLabel.setText("Fully grown! Keep the streak going.");
+            return;
+        }
+
+        int stageStart = streak;                  // lowest streak that still gives this stage
+        while (stageStart > 0) {
+            probe.grow(stageStart - 1);
+            if (probe.getGrowthStage() != stage) {
+                break;
+            }
+            stageStart--;
+        }
+        int nextStageAt = streak + 1;             // first streak that gives the next stage
+        probe.grow(nextStageAt);
+        while (probe.getGrowthStage() == stage && nextStageAt < 1000) {
+            nextStageAt++;
+            probe.grow(nextStageAt);
+        }
+
+        int left = nextStageAt - streak;
+        stageProgress.setProgress((double) (streak - stageStart) / (nextStageAt - stageStart));
+        String unit = "DAILY".equals(habit.getFrequency())
+                ? (left == 1 ? "day" : "days")
+                : (left == 1 ? "week" : "weeks");
+        nextStageLabel.setText(left + " more " + unit + " until: " + look.getStageName(probe.getGrowthStage()));
+    }
+
+    private Plant newPlantOfType(String plantType) {
+        switch (plantType) {
+            case "TREE":
+                return new Tree();
+            case "CACTUS":
+                return new Cactus();
+            default:
+                return new Flower();
+        }
+    }
+
+    // ---------- small text helpers ----------
+
+    private String streakText(Habit habit) {
+        if (habit.isMissed()) {
+            return "streak broken (was " + habit.getStreak() + ")";
+        }
+        return "streak " + habit.getStreak();
+    }
+
+    private String statusText(Habit habit) {
+        if (habit.getPlant().isWilted()) {
+            return "wilting - needs water";
+        }
+        if (habit.isDue()) {
+            return "needs water " + periodWord(habit);
+        }
+        return "watered";
+    }
+
+    private String statusStyle(Habit habit) {
+        if (habit.getPlant().isWilted()) {
+            return "dot-wilted";
+        }
+        return habit.isDue() ? "dot-due" : "dot-done";
+    }
+
+    /** "today" for a daily habit, "this week" for a weekly one. */
+    private String periodWord(Habit habit) {
+        return "DAILY".equals(habit.getFrequency()) ? "today" : "this week";
     }
 
     private void showMessage(String text) {
         messageLabel.setText(text);
     }
-
-    // ---------- table: Done / Delete buttons in every row ----------
-
-    private void setupActionColumn() {
-        actionCol.setCellFactory(col -> new TableCell<Habit, Void>() {
-            private final Button doneBtn = new Button("Done");
-            private final Button deleteBtn = new Button("Delete");
-            private final HBox box = new HBox(6, doneBtn, deleteBtn);
-
-            {
-                doneBtn.getStyleClass().add("done-button");
-                deleteBtn.getStyleClass().add("delete-button");
-                doneBtn.setOnAction(e -> completeHabit(getTableView().getItems().get(getIndex())));
-                deleteBtn.setOnAction(e -> deleteHabit(getTableView().getItems().get(getIndex())));
-            }
-
-            @Override
-            protected void updateItem(Void item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || getIndex() < 0 || getIndex() >= getTableView().getItems().size()) {
-                    setGraphic(null);
-                    return;
-                }
-                Habit habit = getTableView().getItems().get(getIndex());
-                doneBtn.setDisable(!habit.isDue());
-                setGraphic(box);
-            }
-        });
-    }
-
-    // ---------- garden: one card per plant ----------
-
-    private void buildGarden() {
-        gardenPane.getChildren().clear();
-
-        if (manager.getHabits().isEmpty()) {
-            Label empty = new Label("Your garden is empty. Add a habit to plant your first seed.");
-            empty.getStyleClass().add("empty-label");
-            gardenPane.getChildren().add(empty);
-            return;
-        }
-
-        for (Habit habit : manager.getHabits()) {
-            gardenPane.getChildren().add(createPlantCard(habit));
-        }
-    }
-
-    private VBox createPlantCard(Habit habit) {
-        VBox card = new VBox(6);
-        card.setAlignment(Pos.CENTER);
-        card.setPadding(new Insets(12));
-        card.setPrefWidth(180);
-        card.getStyleClass().add("plant-card");
-        if (habit.getPlant().isWilted()) {
-            card.getStyleClass().add("plant-card-wilted");
-        }
-
-        Label name = new Label(habit.getHabitName());
-        name.getStyleClass().add("card-name");
-        name.setWrapText(true);
-
-        Label streak = new Label("Streak: " + streakText(habit));
-        streak.getStyleClass().add("card-info");
-
-        Label stage = new Label(habit.getPlant().getStageName() + "  |  " + habit.getFrequency());
-        stage.getStyleClass().add("card-info");
-
-        Label status = new Label(statusOf(habit));
-        status.getStyleClass().add(statusStyle(habit));
-
-        Button done = new Button("Done");
-        done.getStyleClass().add("done-button");
-        done.setDisable(!habit.isDue());
-        done.setOnAction(e -> completeHabit(habit));
-
-        card.getChildren().addAll(createPlantPicture(habit), name, streak, stage, status, done);
-        return card;
-    }
-
-    /** Shows the plant image for the current stage; falls back to text if the file is missing. */
-    private Node createPlantPicture(Habit habit) {
-        Image image = loadImage(habit.getPlant().getPlantImage());
-        if (image != null) {
-            ImageView view = new ImageView(image);
-            view.setFitWidth(110);
-            view.setFitHeight(110);
-            view.setPreserveRatio(true);
-            return view;
-        }
-        Label placeholder = new Label(habit.getPlant().getStageName());
-        placeholder.getStyleClass().add("image-placeholder");
-        placeholder.setPrefSize(110, 110);
-        placeholder.setAlignment(Pos.CENTER);
-        return placeholder;
-    }
-
-    private Image loadImage(String fileName) {
-        if (imageCache.containsKey(fileName)) {
-            return imageCache.get(fileName);
-        }
-        Image image = null;
-        try (InputStream in = getClass().getResourceAsStream("/images/" + fileName)) {
-            if (in != null) {
-                image = new Image(in);
-            }
-        } catch (Exception e) {
-            // image could not be read: the text placeholder is used instead
-        }
-        imageCache.put(fileName, image);
-        return image;
-    }
-
-    // ---------- status text and style ----------
-
-    /** A missed habit's streak is already broken, so show 0 and the old value. */
-    private String streakText(Habit habit) {
-        if (habit.isMissed()) {
-            return "0 (was " + habit.getStreak() + ")";
-        }
-        return String.valueOf(habit.getStreak());
-    }
-
-    private String statusOf(Habit habit) {
-        if (habit.getPlant().isWilted()) {
-            return "Wilted - needs care";
-        }
-        if (habit.isDue()) {
-            return "Due";
-        }
-        return "Done for now";
-    }
-
-    private String statusStyle(Habit habit) {
-        if (habit.getPlant().isWilted()) {
-            return "status-wilted";
-        }
-        return habit.isDue() ? "status-due" : "status-done";
-    }
-
-    // ---------- alerts ----------
 
     private void showError(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
@@ -358,5 +404,39 @@ public class HabitGardenController {
         alert.setHeaderText(title);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    // ======================================================================
+    // How each row of the habit list is drawn
+    // ======================================================================
+
+    private class HabitCell extends ListCell<Habit> {
+        private final Circle dot = new Circle(6);
+        private final Label name = new Label();
+        private final Label info = new Label();
+        private final HBox row = new HBox(10, dot, new VBox(2, name, info));
+
+        HabitCell() {
+            row.setAlignment(Pos.CENTER_LEFT);
+            setPrefWidth(0);                       // fit the list width: no sideways scrolling
+            name.getStyleClass().add("cell-name");
+            info.getStyleClass().add("cell-info");
+        }
+
+        @Override
+        protected void updateItem(Habit habit, boolean empty) {
+            super.updateItem(habit, empty);
+            setText(null);
+            if (empty || habit == null) {
+                setGraphic(null);
+                return;
+            }
+            PlantView look = PlantView.create(habit);
+            name.setText(habit.getHabitName());
+            String streak = habit.isMissed() ? "streak broken" : "streak " + habit.getStreak();
+            info.setText(look.getTypeLabel() + " - " + look.getStageName() + " - " + streak);
+            dot.getStyleClass().setAll("status-dot", statusStyle(habit));
+            setGraphic(row);
+        }
     }
 }

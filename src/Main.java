@@ -15,12 +15,12 @@ public class Main extends Application {
         FXMLLoader loader = new FXMLLoader(Main.class.getResource("/fxml/main.fxml"));
         Parent root = loader.load();
 
-        Scene scene = new Scene(root, 960, 640);
+        Scene scene = new Scene(root, 1200, 760);
         scene.getStylesheets().add(Main.class.getResource("/css/style.css").toExternalForm());
 
         stage.setTitle("HabitGarden - Grow Your Routine");
-        stage.setMinWidth(820);
-        stage.setMinHeight(560);
+        stage.setMinWidth(980);
+        stage.setMinHeight(680);
         stage.setScene(scene);
         stage.show();
     }
