@@ -1,5 +1,6 @@
 habitName,frequency,streak,lastCompletedDate,plantType
-Drink Water,DAILY,6,2026-10-22,FLOWER
-Study 1 Hour,DAILY,5,2026-10-22,TREE
-Gym,DAILY,7,2026-10-19,CACTUS
-Read a Book,WEEKLY,0,,FLOWER
+Drink Water,DAILY,1,2026-10-27,FLOWER
+Study 1 Hour,DAILY,1,2026-10-27,TREE
+Gym,DAILY,1,2026-10-27,CACTUS
+Read a Book,WEEKLY,1,2026-10-27,FLOWER
+Walk,DAILY,1,2026-10-27,FLOWER
