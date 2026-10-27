@@ -1,5 +1,6 @@
 package controller;
-
+import javafx.application.Platform;
+import storage.CsvHabitStorage;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.collections.FXCollections;
@@ -39,15 +40,17 @@ import java.util.Optional;
 public class HabitGardenController {
 
     // Set to false once Member 3's storage is connected (see persist / loadSavedHabits).
-    private static final boolean DEMO_MODE = true;
+    private static final boolean DEMO_MODE = false;
 
     // ---------- model ----------
     private final HabitManager manager = new HabitManager();
+    private final CsvHabitStorage storage = new CsvHabitStorage("data/habits.csv");
     private final ObservableList<Habit> items = FXCollections.observableArrayList();
     private GardenView garden;
     private Habit selected;                 // the plant shown in the side panel (or null)
     private boolean syncingList = false;    // stops the list and garden selecting each other in a loop
     private LocalDate lastRefreshDay;
+
 
     // ---------- widgets injected from main.fxml ----------
     @FXML private StackPane gardenHolder;
@@ -107,28 +110,26 @@ public class HabitGardenController {
 
     /** Member 3 hook: load habits from the CSV file when the app starts. */
     private void loadSavedHabits() {
-        // TODO (Member 3 / integration):
-        // try {
-        //     for (Habit h : storage.loadHabits()) {
-        //         try {
-        //             manager.addHabit(h);              // one bad row is skipped,
-        //         } catch (IllegalArgumentException e) { // the rest still load
-        //             System.err.println("Skipped habit: " + e.getMessage());
-        //         }
-        //     }
-        // } catch (Exception e) {
-        //     showError("Could not load habits", e.getMessage());
-        // }
+        try {
+            for (model.Habit h : storage.loadHabits()) {
+                manager.addHabit(h);
+            }
+            if (!storage.getLoadWarnings().isEmpty()) {
+                String text = String.join("\n", storage.getLoadWarnings());
+                Platform.runLater(() -> showError("Some saved habits were skipped", text));
+            }
+        } catch (Exception e) {
+            showError("Could not load habits", e.getMessage());
+        }
     }
 
     /** Member 3 hook: save all habits to the CSV file. Called after every change. */
     private void persist() {
-        // TODO (Member 3 / integration):
-        // try {
-        //     storage.saveHabits(manager.getHabits());
-        // } catch (Exception e) {
-        //     showError("Could not save habits", e.getMessage());
-        // }
+        try {
+            storage.saveHabits(manager.getHabits());
+        } catch (Exception e) {
+            showError("Could not save habits", e.getMessage());
+        }
     }
 
     /** Sample habits so every growth stage and the wilted state can be seen without a CSV file. */
